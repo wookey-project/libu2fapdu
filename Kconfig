@@ -1,0 +1,25 @@
+config USR_LIB_APDU
+bool  "userspace APDU encoding/decoding stack"
+  default y
+  ---help---
+  Support for basic APDU encoding and decoding, used for FIDO
+  stack, out of iso7816 advanced APDU usage
+
+if USR_LIB_APDU
+
+menu "APDU options"
+
+config USR_LIB_APDU_DEBUG
+  int "APDU stack debug informations level"
+  default 0
+  range 0 2
+  ---help---
+  CTAP2 stack debug level. Supported levels are:
+    * 0: no debug
+    * 1: command execution debug, list received and sent commands
+    * 2: command dump debug, dumping complex commands content and
+         received and sent data size
+
+endmenu
+
+endif
