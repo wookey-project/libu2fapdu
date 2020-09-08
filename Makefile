@@ -3,7 +3,7 @@
 ###################################################################
 
 # library name, without extension
-LIB_NAME ?= libapdu
+LIB_NAME ?= libu2fapdu
 
 # project root directory, relative to app dir
 PROJ_FILES = ../../
