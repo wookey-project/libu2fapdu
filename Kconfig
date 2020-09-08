@@ -1,15 +1,15 @@
-config USR_LIB_APDU
+config USR_LIB_U2FAPDU
 bool  "userspace APDU encoding/decoding stack"
   default y
   ---help---
   Support for basic APDU encoding and decoding, used for FIDO
   stack, out of iso7816 advanced APDU usage
 
-if USR_LIB_APDU
+if USR_LIB_U2FAPDU
 
 menu "APDU options"
 
-config USR_LIB_APDU_DEBUG
+config USR_LIB_U2FAPDU_DEBUG
   int "APDU stack debug informations level"
   default 0
   range 0 2
