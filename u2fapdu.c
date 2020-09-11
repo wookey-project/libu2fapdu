@@ -161,9 +161,9 @@ err:
 }
 
 
-static void u2fapdu_print_apdu(u2fapdu_cmd_t *apdu)
+static void u2fapdu_print_apdu(u2fapdu_cmd_t *apdu __attribute__((unused)))
 {
-#if CONFIG_USR_LIB_FIDO_DEBUG
+#if CONFIG_USR_LIB_U2FAPDU_DEBUG
 	log_printf("CLA=0x%x, INS=0x%x, P1=0x%x, P2=0x%x\n", apdu->cla, apdu->ins, apdu->p1, apdu->p2);
 	log_printf("Lc=0x%x, Le=0x%x, %s\n", apdu->Lc, apdu->Le, (apdu->extended_apdu == 1) ? "Extended APDU" : "Short APDU");
 
@@ -247,6 +247,7 @@ mbed_error_t u2fapdu_handle_cmd(uint32_t  metadata __attribute__((unused)),
 			uint16_t orig_resp_len = *resp_len;
 			/* Sanity check */
             if(apdu_callback == NULL) {
+                log_printf("[U2FAPDU] invalid callback! leaving\n");
                 errcode = MBED_ERROR_INVSTATE;
 				goto err;
 			}
