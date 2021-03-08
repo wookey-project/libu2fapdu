@@ -152,7 +152,7 @@ static mbed_error_t u2f_apdu_forge_resp(uint8_t  *resp_buff,
 	log_printf("[U2F_APDU] Forging APDU response:\n");
 	log_printf("SW1=0x%x, SW2=0x%x, Le=0x%x\n", sw1, sw2, resp_data_buff_len);
 #if CONFIG_USR_LIB_FIDO_DEBUG
-    hexdump(resp_buff, resp_data_buff_len);
+        hexdump(resp_buff, resp_data_buff_len);
 #endif
 
 	return MBED_ERROR_NONE;
@@ -161,7 +161,7 @@ err:
 }
 
 
-static void u2fapdu_print_apdu(u2fapdu_cmd_t *apdu __attribute__((unused)))
+static void u2fapdu_print_apdu(const u2fapdu_cmd_t *apdu __attribute__((unused)))
 {
 #if CONFIG_USR_LIB_U2FAPDU_DEBUG
 	log_printf("CLA=0x%x, INS=0x%x, P1=0x%x, P2=0x%x\n", apdu->cla, apdu->ins, apdu->p1, apdu->p2);
@@ -199,44 +199,60 @@ mbed_error_t u2fapdu_handle_cmd(uint32_t  metadata __attribute__((unused)),
 {
 	u2fapdu_cmd_t apdu;
 	uint16_t sw1sw2;
-    mbed_error_t errcode = MBED_ERROR_INVPARAM;
+        mbed_error_t errcode = MBED_ERROR_INVPARAM;
 
+        if((apdu_buff == NULL) || (resp_buff == NULL) || (resp_len == NULL)){
+                errcode = MBED_ERROR_INVPARAM;
+		goto err;
+        }
 	/* Parse the APDU */
-	if (u2fapdu_parse_cmd(apdu_buff, apdu_len, &apdu)) {
+	if ((errcode = u2fapdu_parse_cmd(apdu_buff, apdu_len, &apdu)) != MBED_ERROR_NONE) {
 		/* We have an error when parsing, send an error */
+	        log_printf("[U2F_APDU] %s: error when parsing APDU, SW_WRONG_LENGTH\n", __func__);
 		sw1sw2 = SW_WRONG_LENGTH;
-        errcode = MBED_ERROR_INVPARAM;
 		goto send_error;
 	}
 	if (apdu.cla != 0x00) {
+	        log_printf("[U2F_APDU] %s: CLA != 0, SW_CLA_NOT_SUPPORTED\n", __func__);
 		sw1sw2 = SW_CLA_NOT_SUPPORTED;
-        errcode = MBED_ERROR_UNSUPORTED_CMD;
+                errcode = MBED_ERROR_UNSUPORTED_CMD;
 		goto send_error;
 	}
 	/* Only P2 = 0 is supported for all instructions */
 	if (apdu.p2 != 0x00) {
+	        log_printf("[U2F_APDU] %s: P2 != 0, SW_WRONG_DATA\n", __func__);
 		sw1sw2 = SW_WRONG_DATA;
-        errcode = MBED_ERROR_UNSUPORTED_CMD;
+                errcode = MBED_ERROR_UNSUPORTED_CMD;
 		goto send_error;
 	}
-	if ((apdu.ins == U2F_REGISTER) || (apdu.ins == U2F_AUTHENTICATE)) {
+	if (apdu.ins == U2F_AUTHENTICATE) {
 		if ((apdu.p1 != ENFORCE_USER_PRESENCE_AND_SIGN) &&
-            (apdu.p1 != CHECK_ONLY) &&
-            (apdu.p1 != DONT_ENFORCE_USER_PRESENCE_AND_SIGN))
-        {
+                    (apdu.p1 != CHECK_ONLY) &&
+                    (apdu.p1 != DONT_ENFORCE_USER_PRESENCE_AND_SIGN)) {
+	                log_printf("[U2F_APDU] %s: error in P1=0x%x (!= 0x%x or 0x%x or 0x%x), SW_WRONG_DATA\n", __func__, apdu.p1, ENFORCE_USER_PRESENCE_AND_SIGN, CHECK_ONLY, DONT_ENFORCE_USER_PRESENCE_AND_SIGN);
 			sw1sw2 = SW_WRONG_DATA;
-            errcode = MBED_ERROR_UNSUPORTED_CMD;
-            goto send_error;
+                        errcode = MBED_ERROR_UNSUPORTED_CMD;
+                        goto send_error;
 		}
 	} else {
 		if (apdu.p1 != 0x00) {
-			sw1sw2 = SW_WRONG_DATA;
-            errcode = MBED_ERROR_UNSUPORTED_CMD;
-			goto send_error;
+                        if((apdu.ins == U2F_REGISTER) && ((apdu.p1 != ENFORCE_USER_PRESENCE_AND_SIGN) || (apdu.p1 != CHECK_ONLY) || (apdu.p1 != DONT_ENFORCE_USER_PRESENCE_AND_SIGN))){
+                            /* NOTE: some implementation wrongly use P1 != 0 for U2F_REGISTER ... In lax mode
+                             * allow this!
+                             */
+				log_printf("[U2FAPDU] %s:warning,  P1 != 0 (= 0x%x) for U2F_REGISTER\n", __func__, apdu.p1);
+				log_printf("           => we are in lax mode: ignoring this error ...\n");
+                        }
+                        else{
+     	                    log_printf("[U2F_APDU] %s: P1 != 0, SW_WRONG_DATA\n", __func__);
+  			    sw1sw2 = SW_WRONG_DATA;
+                            errcode = MBED_ERROR_UNSUPORTED_CMD;
+			    goto send_error;
+                       }
 		}
 	}
 	log_printf("[U2F_APDU] %s: Received an APDU:\n", __func__);
-    /* print apdu is protected in non-DEBUG mode, no preproc required */
+        /* print apdu is protected in non-DEBUG mode, no preproc required */
 	u2fapdu_print_apdu(&apdu);
 	/* Get the command */
 	switch(apdu.ins) {
@@ -246,16 +262,15 @@ mbed_error_t u2fapdu_handle_cmd(uint32_t  metadata __attribute__((unused)),
 		{
 			uint16_t orig_resp_len = *resp_len;
 			/* Sanity check */
-            if(apdu_callback == NULL) {
-                log_printf("[U2FAPDU] invalid callback! leaving\n");
-                errcode = MBED_ERROR_INVSTATE;
+                        if(apdu_callback == NULL) {
+                               log_printf("[U2FAPDU] invalid callback! leaving\n");
+                                errcode = MBED_ERROR_INVSTATE;
 				goto err;
 			}
 			/* Ask the upper layer with metadata formed with INS | P1 | P2 (for the upper layer) */
 			int error = apdu_callback(apdu.ins | (apdu.p1 << 8) | (apdu.p2 << 16), apdu.data, apdu.Lc, resp_buff, resp_len);
 			/* NOTE: we are not strict here because many implementations are not conforming, but is data out is to be expected,
 			 * we should enforce Le!
-			 * Some impl
 			 */
 			if ((*resp_len) > apdu.Le) {
 				log_printf("[U2FAPDU] %s: warning, got response of len %d > Le=%d\n", __func__, *resp_len, apdu.Le);
@@ -268,50 +283,50 @@ mbed_error_t u2fapdu_handle_cmd(uint32_t  metadata __attribute__((unused)),
 					/* No error. Forge the response and send it back! */
 					sw1sw2 = SW_NO_ERROR;
 					if (u2f_apdu_forge_resp(resp_buff, resp_len, (sw1sw2 >> 8), (sw1sw2 & 0xff), resp_buff, no_error_payload_size)) {
-                        errcode = MBED_ERROR_WRERROR;
+                                                errcode = MBED_ERROR_WRERROR;
 						goto err;
 					}
 					goto end;
 				}
 				case REQUIRE_TEST_USER_PRESENCE:{
 					log_printf("[U2FAPDU] %s Error: REQUIRE_TEST_USER_PRESENCE/SW_CONDITIONS_NOT_SATISFIED\n", __func__);
-                    sw1sw2 = SW_CONDITIONS_NOT_SATISFIED;
-                    errcode = MBED_ERROR_INVCREDENCIALS;
+                                        sw1sw2 = SW_CONDITIONS_NOT_SATISFIED;
+                                        errcode = MBED_ERROR_INVCREDENCIALS;
 					goto send_error;
 				}
 				case INVALID_KEY_HANDLE:{
 					log_printf("[U2FAPDU] %s Error: INVALID_KEY_HANDLE/SW_WRONG_DATA\n", __func__);
 					sw1sw2 = SW_WRONG_DATA;
-                    errcode = MBED_ERROR_NOTFOUND;
+                                        errcode = MBED_ERROR_NOTFOUND;
 					goto send_error;
 				}
 				case WRONG_LENGTH:{
 					log_printf("[U2FAPDU] %s Error: WRONG_LENGTH/SW_WRONG_LENGTH\n", __func__);
 					sw1sw2 = SW_WRONG_LENGTH;
-                    errcode = MBED_ERROR_INVPARAM;
+                                        errcode = MBED_ERROR_INVPARAM;
 					goto send_error;
 				}
 				default:
 					log_printf("[U2FAPDU] %s Error: unkown error!\n", __func__);
 					/* Unkown error ... */
-                    errcode = MBED_ERROR_UNKNOWN;
+                                        errcode = MBED_ERROR_UNKNOWN;
 					goto err;
 			}
 			break;
 		}
 		default: {
-            sw1sw2 = SW_INS_NOT_SUPPORTED;
-            errcode = MBED_ERROR_UNSUPORTED_CMD;
+                        sw1sw2 = SW_INS_NOT_SUPPORTED;
+                        errcode = MBED_ERROR_UNSUPORTED_CMD;
 			goto send_error;
 		}
 	}
 
 send_error:
-	if(u2f_apdu_forge_resp(resp_buff, resp_len, (sw1sw2 >> 8), (sw1sw2 & 0xff), NULL, 0)){
+	if((errcode = u2f_apdu_forge_resp(resp_buff, resp_len, (sw1sw2 >> 8), (sw1sw2 & 0xff), NULL, 0)) != MBED_ERROR_NONE){
 		goto err;
 	}
 end:
-    errcode = MBED_ERROR_NONE;
+        errcode = MBED_ERROR_NONE;
 	return errcode;
 err:
 	return errcode;
