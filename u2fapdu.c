@@ -151,7 +151,7 @@ static mbed_error_t u2f_apdu_forge_resp(uint8_t  *resp_buff,
 
 	log_printf("[U2F_APDU] Forging APDU response:\n");
 	log_printf("SW1=0x%x, SW2=0x%x, Le=0x%x\n", sw1, sw2, resp_data_buff_len);
-#if CONFIG_USR_LIB_FIDO_DEBUG
+#if CONFIG_USR_LIB_U2FAPDU_DEBUG
         hexdump(resp_buff, resp_data_buff_len);
 #endif
 
