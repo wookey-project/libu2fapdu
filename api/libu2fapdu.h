@@ -37,7 +37,7 @@ typedef mbed_error_t (*apdu_upper_layer_cb_t)(uint32_t  metadata,
                                      const uint8_t  *msg,
                                      uint16_t  len_in,
                                      uint8_t  *resp,
-                                     uint16_t *len_out);
+                                     uint16_t *len_out, int *fido_error);
 
 /*
  * register the above callback against the U2FAPDU library

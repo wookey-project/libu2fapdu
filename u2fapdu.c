@@ -268,7 +268,12 @@ mbed_error_t u2fapdu_handle_cmd(uint32_t  metadata __attribute__((unused)),
 				goto err;
 			}
 			/* Ask the upper layer with metadata formed with INS | P1 | P2 (for the upper layer) */
-			int error = apdu_callback(apdu.ins | (apdu.p1 << 8) | (apdu.p2 << 16), apdu.data, apdu.Lc, resp_buff, resp_len);
+			int error;
+			if(apdu_callback(apdu.ins | (apdu.p1 << 8) | (apdu.p2 << 16), apdu.data, apdu.Lc, resp_buff, resp_len, &error) != MBED_ERROR_NONE){
+                               log_printf("[U2FAPDU] callback returning an internal error, leaving\n");
+                                errcode = MBED_ERROR_UNKNOWN;
+				goto err;
+			}
 			/* NOTE: we are not strict here because many implementations are not conforming, but is data out is to be expected,
 			 * we should enforce Le!
 			 */
@@ -307,7 +312,7 @@ mbed_error_t u2fapdu_handle_cmd(uint32_t  metadata __attribute__((unused)),
 					goto send_error;
 				}
 				default:
-					log_printf("[U2FAPDU] %s Error: unkown error!\n", __func__);
+					log_printf("[U2FAPDU] %s Error: unknown error!\n", __func__);
 					/* Unkown error ... */
                                         errcode = MBED_ERROR_UNKNOWN;
 					goto err;
